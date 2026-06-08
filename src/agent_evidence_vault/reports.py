@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List
 
 from .models import CheckResult, VaultManifest
-from .utils import write_json
+from .utils import write_json, write_text_lf
 
 
 def write_reports(manifest: VaultManifest, out_dir: Path, formats: Iterable[str]) -> Dict[str, str]:
@@ -22,11 +22,11 @@ def write_reports(manifest: VaultManifest, out_dir: Path, formats: Iterable[str]
         outputs["json"] = str(path)
     if "markdown" in requested or "md" in requested:
         path = out_dir / "report.md"
-        path.write_text(render_markdown(manifest), encoding="utf-8", newline="\n")
+        write_text_lf(path, render_markdown(manifest))
         outputs["markdown"] = str(path)
     if "junit" in requested:
         path = out_dir / "junit.xml"
-        path.write_text(render_junit(manifest), encoding="utf-8", newline="\n")
+        write_text_lf(path, render_junit(manifest))
         outputs["junit"] = str(path)
     return outputs
 

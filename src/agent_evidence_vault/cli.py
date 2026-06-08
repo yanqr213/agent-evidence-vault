@@ -12,6 +12,7 @@ from . import __version__
 from .api import collect_vault, load_manifest, verify_manifest
 from .config import explain_config, load_config, validate_config
 from .reports import render_junit, render_markdown
+from .utils import write_text_lf
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -58,7 +59,7 @@ def main(argv: List[str] | None = None) -> int:
         if args.command == "check":
             result = verify_manifest(args.manifest, args.root)
             if args.junit:
-                Path(args.junit).write_text(render_junit(result.manifest), encoding="utf-8", newline="\n")
+                write_text_lf(Path(args.junit), render_junit(result.manifest))
             print(f"integrity: {'PASS' if result.gate_passed else 'FAIL'}")
             failed = [check for check in result.manifest.checks if check.status != "passed"]
             for check_result in failed[:20]:

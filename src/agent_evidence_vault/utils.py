@@ -38,6 +38,12 @@ def write_json(path: Path, data: Dict[str, Any]) -> None:
         handle.write("\n")
 
 
+def write_text_lf(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+
+
 def normalize_relpath(path: Path, root: Path) -> str:
     return path.relative_to(root).as_posix()
 
