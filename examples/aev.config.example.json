@@ -1,0 +1,9 @@
+{
+  "required_evidence": ["commands", "tests", "acceptance", "review_notes"],
+  "fail_on_open_risks": ["critical", "high"],
+  "minimum_score": 75,
+  "include": ["**/*"],
+  "exclude": [".git/**", "__pycache__/**", "*.pyc", "vault/**", "dist/**", "build/**"],
+  "max_file_bytes": 10485760
+}
+

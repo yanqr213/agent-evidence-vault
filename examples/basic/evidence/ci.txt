@@ -1,0 +1,3 @@
+name: GitHub Actions smoke
+status: passed
+artifact: local-ci-smoke-123

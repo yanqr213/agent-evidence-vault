@@ -1,0 +1,3 @@
+{"name":"No production deployment proof","severity":"medium","status":"open","mitigation":"Deployment is outside this local agent handoff."}
+{"name":"Prompt transcript omitted","severity":"low","status":"mitigated","mitigation":"Summary and commands are included."}
+

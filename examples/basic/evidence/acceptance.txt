@@ -1,0 +1,4 @@
+criterion: Addition returns the numeric sum
+status: passed
+note: Verified by unit test and smoke command.
+
