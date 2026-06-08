@@ -21,6 +21,8 @@ jobs:
         run: python -m unittest discover -s tests
       - name: Build sample vault
         run: python -m agent_evidence_vault collect --root examples/basic --evidence examples/basic/evidence --out vault --format all --minimum-score 60
+      - name: Validate sample attestation
+        run: python -m json.tool vault/attestation.json > /dev/null
       - name: Verify sample vault integrity
         run: python -m agent_evidence_vault check --manifest vault/manifest.json --root examples/basic
 

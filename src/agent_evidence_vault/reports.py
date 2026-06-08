@@ -1,10 +1,12 @@
-"""Markdown, JSON, and JUnit report rendering."""
+"""Markdown, JSON, JUnit, and attestation report rendering."""
 
 from __future__ import annotations
 
 import html
+import json
+import hashlib
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Any, Dict, Iterable, List
 
 from .models import CheckResult, VaultManifest
 from .utils import write_json, write_text_lf
@@ -15,11 +17,15 @@ def write_reports(manifest: VaultManifest, out_dir: Path, formats: Iterable[str]
     outputs: Dict[str, str] = {}
     requested = set(formats)
     if "all" in requested:
-        requested = {"json", "markdown", "junit"}
+        requested = {"json", "markdown", "junit", "attestation"}
     if "json" in requested:
         path = out_dir / "manifest.json"
         write_json(path, manifest.to_dict())
         outputs["json"] = str(path)
+    if "attestation" in requested:
+        path = out_dir / "attestation.json"
+        write_json(path, render_attestation(manifest))
+        outputs["attestation"] = str(path)
     if "markdown" in requested or "md" in requested:
         path = out_dir / "report.md"
         write_text_lf(path, render_markdown(manifest))
@@ -67,6 +73,48 @@ def render_markdown(manifest: VaultManifest) -> str:
         )
     lines.append("")
     return "\n".join(lines)
+
+
+def render_attestation(manifest: VaultManifest) -> Dict[str, Any]:
+    failed_checks = [check for check in manifest.checks if check.status != "passed"]
+    evidence_by_category: Dict[str, int] = {}
+    evidence_by_status: Dict[str, int] = {}
+    for item in manifest.evidence:
+        evidence_by_category[item.category] = evidence_by_category.get(item.category, 0) + 1
+        evidence_by_status[item.status] = evidence_by_status.get(item.status, 0) + 1
+    return {
+        "_type": "https://in-toto.io/Statement/v1",
+        "subject": [
+            {
+                "name": file_record.path,
+                "digest": {"sha256": file_record.sha256},
+                "size": file_record.size,
+                "kind": file_record.kind,
+                "evidence_category": file_record.evidence_category,
+            }
+            for file_record in manifest.files
+        ],
+        "predicateType": "https://github.com/yanqr213/agent-evidence-vault/attestation/v1",
+        "predicate": {
+            "schema_version": manifest.schema_version,
+            "generated_at": manifest.generated_at,
+            "root": manifest.root,
+            "tool": manifest.tool,
+            "manifest_sha256": canonical_manifest_sha256(manifest),
+            "gate": "PASS" if not failed_checks else "FAIL",
+            "score": manifest.score,
+            "summary": manifest.summary,
+            "evidence_by_category": evidence_by_category,
+            "evidence_by_status": evidence_by_status,
+            "checks": [check.to_dict() for check in manifest.checks],
+            "failed_checks": [check.to_dict() for check in failed_checks],
+        },
+    }
+
+
+def canonical_manifest_sha256(manifest: VaultManifest) -> str:
+    payload = json.dumps(manifest.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def escape_pipe(value: str) -> str:

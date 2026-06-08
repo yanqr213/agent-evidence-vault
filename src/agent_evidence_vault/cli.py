@@ -25,7 +25,12 @@ def build_parser() -> argparse.ArgumentParser:
     collect.add_argument("--evidence", default=None, help="directory containing evidence JSON/JSONL/TXT files")
     collect.add_argument("--out", default="vault", help="output directory")
     collect.add_argument("--config", default=None, help="JSON config path")
-    collect.add_argument("--format", action="append", choices=["all", "json", "markdown", "md", "junit"], default=None)
+    collect.add_argument(
+        "--format",
+        action="append",
+        choices=["all", "json", "markdown", "md", "junit", "attestation"],
+        default=None,
+    )
     collect.add_argument("--minimum-score", type=int, default=None, help="override config minimum_score")
     collect.add_argument("--quiet", action="store_true")
 

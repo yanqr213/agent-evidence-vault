@@ -1,11 +1,12 @@
 # agent-evidence-vault
 
-`agent-evidence-vault` 是一个零运行时依赖的 Python 3.9+ 开源项目，用来把 Codex、Claude Code、Cursor 等 AI coding agent 的一次交付离线打包成可审计 evidence vault。它扫描交付目录，读取命令、测试、CI、风险、验收、review notes 等证据，生成 manifest、SHA256 完整性哈希、Markdown/JSON/JUnit 报告，并提供 CI gate 退出码，帮助团队回答：
+`agent-evidence-vault` 是一个零运行时依赖的 Python 3.9+ 开源项目，用来把 Codex、Claude Code、Cursor 等 AI coding agent 的一次交付离线打包成可审计 evidence vault。它扫描交付目录，读取命令、测试、CI、风险、验收、review notes 等证据，生成 manifest、SHA256 完整性哈希、Markdown/JSON/JUnit 报告和 in-toto 风格 `attestation.json`，并提供 CI gate 退出码，帮助团队回答：
 
 - 这次 agent 改动验证了什么？
 - 缺少哪些关键证据？
 - 是否存在阻塞风险？
 - manifest 中记录的文件在后续是否被篡改？
+- 有没有一份可随 CI artifact 归档、可被审计系统读取的交付证明？
 - PR/CI 能不能合并或放行？
 
 ## 适用场景
@@ -42,6 +43,7 @@ python -m agent_evidence_vault check \
 
 ```bash
 aev collect --root . --evidence evidence --out vault
+aev collect --root . --evidence evidence --out vault --format attestation
 aev score --manifest vault/manifest.json
 ```
 
@@ -61,7 +63,7 @@ aev collect --root . --evidence evidence --out vault --format all
 - `--evidence`：证据输入目录，默认 `<root>/evidence`。
 - `--out`：输出目录，默认 `vault`。
 - `--config`：JSON 配置文件。
-- `--format`：可重复传入，支持 `json`、`markdown`、`junit`、`all`。
+- `--format`：可重复传入，支持 `json`、`markdown`、`junit`、`attestation`、`all`。
 - `--minimum-score`：覆盖配置中的最低分。
 - `--quiet`：减少 stdout 输出。
 
@@ -164,6 +166,19 @@ manifest 中的核心对象：
 - `summary`：证据数量、分类统计、失败数量、开放风险数量。
 - `score`：0 到 100 的风险评分。
 
+`--format all` 默认输出：
+
+- `manifest.json`：完整证据清单和文件哈希。
+- `attestation.json`：in-toto statement 风格的交付证明，包含 subject 文件哈希、manifest 摘要哈希、gate、score、checks 和 evidence 汇总。
+- `report.md`：给 reviewer 阅读的 Markdown 报告。
+- `junit.xml`：给 CI 测试报告系统读取的门禁结果。
+
+如只想生成证明文件：
+
+```bash
+aev collect --root . --evidence evidence --out vault --format attestation
+```
+
 风险项推荐字段：
 
 ```json
@@ -199,10 +214,11 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install -e .
       - run: aev collect --root . --evidence evidence --out vault --format all
+      - run: python -m json.tool vault/attestation.json > /dev/null
       - run: aev check --manifest vault/manifest.json --root .
 ```
 
-JUnit 输出 `vault/junit.xml` 可以被 CI 测试报告系统读取；Markdown 输出 `vault/report.md` 可贴到 PR 评论或 artifact。
+JUnit 输出 `vault/junit.xml` 可以被 CI 测试报告系统读取；Markdown 输出 `vault/report.md` 可贴到 PR 评论或 artifact；`vault/attestation.json` 适合随 CI artifact 归档，或被内部审计、发布门禁、agent 交付看板读取。
 
 ## 配置
 
@@ -260,7 +276,7 @@ python -m agent_evidence_vault collect --root examples/basic --evidence examples
 
 ## English
 
-`agent-evidence-vault` is a dependency-free Python 3.9+ developer tool for packaging one AI coding-agent delivery into an offline, auditable evidence vault. It is designed for teams using Codex, Claude Code, Cursor, and similar agents.
+`agent-evidence-vault` is a dependency-free Python 3.9+ developer tool for packaging one AI coding-agent delivery into an offline, auditable evidence vault. It generates manifests, SHA256 file hashes, Markdown/JSON/JUnit reports, and an in-toto style `attestation.json`. It is designed for teams using Codex, Claude Code, Cursor, and similar agents.
 
 It answers practical review questions:
 
@@ -269,6 +285,7 @@ It answers practical review questions:
 - Which evidence is missing?
 - Are there blocking open risks?
 - Has any file changed since the manifest was created?
+- Is there a machine-readable delivery attestation that can be archived with CI artifacts?
 - Should CI allow this delivery to merge?
 
 ### Installation
@@ -283,6 +300,7 @@ No external runtime dependencies are required.
 
 ```bash
 aev collect --root . --evidence evidence --out vault --format all
+aev collect --root . --evidence evidence --out vault --format attestation
 aev check --manifest vault/manifest.json --root .
 aev score --manifest vault/manifest.json --json
 aev validate-config --config aev.config.json
@@ -329,6 +347,13 @@ The manifest contains:
 - `summary`: category/status counts and risk totals.
 - `score`: a 0-100 risk score.
 
+`--format all` writes:
+
+- `manifest.json`: the full evidence inventory and file hashes.
+- `attestation.json`: an in-toto statement style delivery attestation with subject file hashes, a canonical manifest digest, gate, score, checks, and evidence summaries.
+- `report.md`: a human-readable reviewer report.
+- `junit.xml`: CI-friendly gate results.
+
 ### Integrity Verification
 
 `collect` writes SHA256 hashes into `manifest.json`. `check` recomputes them:
@@ -346,10 +371,11 @@ The repository includes `.github/workflows/ci.yml`. A minimal PR gate is:
 ```yaml
 - run: python -m pip install -e .
 - run: aev collect --root . --evidence evidence --out vault --format all
+- run: python -m json.tool vault/attestation.json > /dev/null
 - run: aev check --manifest vault/manifest.json --root .
 ```
 
-Use `vault/junit.xml` as a CI test report and `vault/report.md` as a PR artifact or comment source.
+Use `vault/junit.xml` as a CI test report, `vault/report.md` as a PR artifact or comment source, and `vault/attestation.json` as the archiveable provenance record for internal audit systems, release gates, or agent-delivery dashboards.
 
 ### Limitations
 

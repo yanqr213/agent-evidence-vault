@@ -160,6 +160,29 @@ class ApiCliTests(unittest.TestCase):
             data = json.loads((root / "vault" / "manifest.json").read_text(encoding="utf-8"))
             self.assertTrue(data["files"])
 
+    def test_cli_collect_attestation_format(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = make_delivery(root)
+            code = main(
+                [
+                    "collect",
+                    "--root",
+                    str(root),
+                    "--evidence",
+                    str(evidence),
+                    "--out",
+                    str(root / "vault"),
+                    "--format",
+                    "attestation",
+                    "--quiet",
+                ]
+            )
+            self.assertEqual(code, 0)
+            payload = json.loads((root / "vault" / "attestation.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["_type"], "https://in-toto.io/Statement/v1")
+            self.assertEqual(payload["predicate"]["gate"], "PASS")
+
 
 if __name__ == "__main__":
     unittest.main()

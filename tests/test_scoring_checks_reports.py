@@ -16,7 +16,14 @@ from agent_evidence_vault.checks import (
     verify_file_hashes,
 )
 from agent_evidence_vault.models import CheckResult, EvidenceItem, FileRecord, VaultManifest
-from agent_evidence_vault.reports import escape_pipe, render_junit, render_markdown, write_reports
+from agent_evidence_vault.reports import (
+    canonical_manifest_sha256,
+    escape_pipe,
+    render_attestation,
+    render_junit,
+    render_markdown,
+    write_reports,
+)
 from agent_evidence_vault.scoring import compute_score, failed_evidence_penalty, risk_penalty, summarize_evidence
 from agent_evidence_vault.utils import sha256_file, utc_now_iso
 
@@ -33,7 +40,7 @@ def manifest(checks=None, evidence=None):
         generated_at=utc_now_iso(),
         root="/tmp/root",
         config={},
-        files=[],
+        files=[FileRecord("src/app.py", 12, "a" * 64, "python", "changes")],
         evidence=evidence,
         checks=checks,
         score=compute_score(evidence, checks),
@@ -144,12 +151,29 @@ class ScoringChecksReportsTests(unittest.TestCase):
         xml = render_junit(manifest(checks=[CheckResult("bad", "failed", "bad", "critical")]))
         self.assertIn("<failure", xml)
 
+    def test_render_attestation_shape(self):
+        payload = render_attestation(manifest())
+        self.assertEqual(payload["_type"], "https://in-toto.io/Statement/v1")
+        self.assertEqual(payload["predicate"]["gate"], "PASS")
+        self.assertEqual(payload["subject"][0]["digest"]["sha256"], "a" * 64)
+        self.assertIn("manifest_sha256", payload["predicate"])
+
+    def test_render_attestation_failed_gate(self):
+        payload = render_attestation(manifest(checks=[CheckResult("bad", "failed", "bad", "critical")]))
+        self.assertEqual(payload["predicate"]["gate"], "FAIL")
+        self.assertEqual(payload["predicate"]["failed_checks"][0]["id"], "bad")
+
+    def test_canonical_manifest_hash_is_stable(self):
+        self.assertEqual(canonical_manifest_sha256(manifest()), canonical_manifest_sha256(manifest()))
+
     def test_write_reports_all(self):
         with tempfile.TemporaryDirectory() as tmp:
             outputs = write_reports(manifest(), Path(tmp), ["all"])
             self.assertIn("json", outputs)
             self.assertIn("markdown", outputs)
             self.assertIn("junit", outputs)
+            self.assertIn("attestation", outputs)
+            self.assertTrue((Path(tmp) / "attestation.json").exists())
 
     def test_write_reports_json_content(self):
         with tempfile.TemporaryDirectory() as tmp:
